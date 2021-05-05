@@ -119,8 +119,7 @@ end;
  /                  
     
 
--- Skipping corrupt blocks
-   
+-- Skipping corrupt blocks   
 - rdsadmin.rdsadmin_dbms_repair.create_repair_table
 - rdsadmin.rdsadmin_dbms_repair.create_orphan_keys_table
 - rdsadmin.rdsadmin_dbms_repair.drop_repair_table
