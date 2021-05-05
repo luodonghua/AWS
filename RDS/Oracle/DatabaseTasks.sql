@@ -117,7 +117,7 @@ begin
   );
 end;
  /                  
-    
+  
 
 -- Skipping corrupt blocks   
 - rdsadmin.rdsadmin_dbms_repair.create_repair_table
