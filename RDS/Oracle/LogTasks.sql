@@ -105,9 +105,3 @@ exec rdsadmin.rdsadmin_master_util.drop_onlinelog_dir;
 -- The following code grants and revokes the DROP ANY DIRECTORY privilege.
 exec rdsadmin.rdsadmin_master_util.grant_drop_any_directory;
 exec rdsadmin.rdsadmin_master_util.revoke_drop_any_directory;
-
-
-
-
-
-
