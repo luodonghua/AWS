@@ -63,4 +63,51 @@ select minimal, all_column, foreign_key, primary_key, unique_index, procedural, 
 from dba_supplemental_logging;
 
 
+-- Switching online log files
+exec rdsadmin.rdsadmin_util.switch_logfile;
+
+-- Check current online logs
+-- default is 4 online redolog groups, each with 128MB size and 1 file per group.
+select group#, sequence#,  bytes/1024/1024 MBbyte from v$log order by group#;
+select group#,member from v$logfile order by group#;
+
+-- Adding online redo logs
+-- The size of the log file. You can specify the size in kilobytes (K), megabytes (M), or gigabytes (G).
+exec rdsadmin.rdsadmin_util.add_logfile(p_size => '100M');
+
+-- Dropping online redo logs
+exec rdsadmin.rdsadmin_util.drop_logfile(grp => 3);
+
+
+-- Retaining archived redo logs
+-- The following example shows the log retention time. (default is 0 hour)
+set serveroutput on
+exec rdsadmin.rdsadmin_util.show_configuration;
+-- The following example retains 24 hours of redo logs.
+begin
+    rdsadmin.rdsadmin_util.set_configuration(
+        name  => 'archivelog retention hours',
+        value => '24');
+end;
+/
+commit;
+
+-- Accessing transaction logs
+-- access your online and archived redo log files for mining with external tools such as 
+-- GoldenGate, Attunity, Informatica, and others. 
+-- If you want to access your online and archived redo log files, 
+-- you must first create directory objects that provide read-only access to the physical file paths.
+exec rdsadmin.rdsadmin_master_util.create_archivelog_dir;
+exec rdsadmin.rdsadmin_master_util.create_onlinelog_dir;
+
+exec rdsadmin.rdsadmin_master_util.drop_archivelog_dir;
+exec rdsadmin.rdsadmin_master_util.drop_onlinelog_dir;
+-- The following code grants and revokes the DROP ANY DIRECTORY privilege.
+exec rdsadmin.rdsadmin_master_util.grant_drop_any_directory;
+exec rdsadmin.rdsadmin_master_util.revoke_drop_any_directory;
+
+
+
+
+
 
