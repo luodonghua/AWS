@@ -226,3 +226,29 @@ BEGIN
 END;
 /   
 
+
+-- Upload to S3 Buckets
+SELECT rdsadmin.rdsadmin_s3_tasks.upload_to_s3(
+      p_bucket_name    =>  'donghua-bucket1', 
+      p_prefix         =>  '', 
+      p_s3_prefix      =>  'rman/', 
+      p_directory_name =>  'RMAN') AS TASK_ID 
+ FROM DUAL;    
+-- You can view the result by displaying the task's output file. (1620357578149-52 is the task id)
+SELECT text FROM table(rdsadmin.rds_file_util.read_text_file('BDUMP','dbtask-1620357578149-52.log'));         
+
+-- AWS CLI Command to download to another machine and remove from S3
+-- aws s3 cp s3://donghua-bucket1/rman . --recursive
+-- aws s3 rm s3://donghua-bucket1/rman  --recursive 
+
+-- To remove Backup files in RMAN directory on RDS server
+declare
+    cursor c1 is select filename from table(rdsadmin.rds_file_util.listdir('RMAN')) where filename like 'BACKUP-%' order by mtime desc;
+begin
+    for f in c1 loop
+        dbms_output.put_line(f.filename);
+        utl_file.fremove('RMAN',f.filename);
+    end loop;
+end;
+/
+
