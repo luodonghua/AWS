@@ -1,5 +1,5 @@
 
-processes                = 39
+processes                = 390
 use_large_pages          = "FALSE"
 spfile                   = "/rdsdbbin/oracle/dbs/spfileORCL.ora"
 filesystemio_options     = "setall"
@@ -31,3 +31,5 @@ dg_broker_config_file1   = "/rdsdbdata/config/dr1ORCL.dat"
 dg_broker_config_file2   = "/rdsdbdata/config/dr2ORCL.dat"
 diagnostic_dest          = "/rdsdbdata/log"
 enable_pluggable_database= FALSE
+
+# Suggest to change job_queue_processes=5 for testing envronment
