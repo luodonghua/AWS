@@ -1,0 +1,33 @@
+
+processes                = 39
+use_large_pages          = "FALSE"
+spfile                   = "/rdsdbbin/oracle/dbs/spfileORCL.ora"
+filesystemio_options     = "setall"
+sga_target               = 0
+memory_target            = 2768M
+memory_max_target        = 2768M
+control_files            = "/rdsdbdata/db/ORCL_A/controlfile/control-01.ctl"
+compatible               = "19.0.0"
+log_archive_dest_1       = "location="/rdsdbdata/db/ORCL_A/arch/redolog", valid_for=(ALL_LOGFILES,ALL_ROLES)"
+log_archive_format       = "-%s-%t-%r.arc"
+archive_lag_target       = 300
+db_create_file_dest      = "/rdsdbdata/db"
+db_recovery_file_dest_size= 1G
+standby_file_management  = "AUTO"
+undo_tablespace          = "UNDO_T1"
+heat_map                 = "OFF"
+db_block_checking        = "MEDIUM"
+recyclebin               = "OFF"
+DBFIPS_140               = FALSE
+local_listener           = "(address=(protocol=tcp)(host=localhost)(port=1521))"
+job_queue_processes      = 50
+audit_file_dest          = "/rdsdbdata/admin/ORCL/adump"
+db_name                  = "ORCL"
+db_unique_name           = "ORCL_A"
+open_cursors             = 300
+pga_aggregate_target     = 0
+max_string_size          = "STANDARD"
+dg_broker_config_file1   = "/rdsdbdata/config/dr1ORCL.dat"
+dg_broker_config_file2   = "/rdsdbdata/config/dr2ORCL.dat"
+diagnostic_dest          = "/rdsdbdata/log"
+enable_pluggable_database= FALSE
