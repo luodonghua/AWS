@@ -8,7 +8,7 @@ memory_target            = 2768M
 memory_max_target        = 2768M
 control_files            = "/rdsdbdata/db/ORCL_A/controlfile/control-01.ctl"
 compatible               = "19.0.0"
-log_archive_dest_1       = "location="/rdsdbdata/db/ORCL_A/arch/redolog", valid_for=(ALL_LOGFILES,ALL_ROLES)"
+log_archive_dest_1       = "location=/rdsdbdata/db/ORCL_A/arch/redolog, valid_for=(ALL_LOGFILES,ALL_ROLES)"
 log_archive_format       = "-%s-%t-%r.arc"
 archive_lag_target       = 300
 db_create_file_dest      = "/rdsdbdata/db"
