@@ -324,6 +324,7 @@ Resources:
             AWS: 
               - !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS' ] ]
               - !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':role/aws-service-role/backup.amazonaws.com/AWSServiceRoleForBackup' ] ]
+              - !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':user/cloud_user' ] ]
           Action:
           - kms:DescribeKey
           - kms:Encrypt
