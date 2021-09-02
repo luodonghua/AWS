@@ -1,0 +1,514 @@
+Description: This template deploy a VPC in acloudguru account, with additional action as below
+  - Crate VPC/IGW/Subnet/SecuriyGroups
+  - S3 Bucket hardcoded
+  - RDS parameters are hardcoded in single place for easier modification, except
+  - DBUser and DBPassword in CF Parameters
+
+Parameters: 
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: Oracle
+    
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.1.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.2.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.4.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.5.0/24
+
+  EC2KeyPairName:
+    Description: Key Name (created before cloudformation stack)
+    Type: String
+    Default: ackoudguru-key
+
+  DBUser:
+    Description: The database admin account username
+    Type: String
+    Default: admin
+
+  DBPassword:
+    Description: The database admin account password
+    Type: String
+    Default: your-secure-password
+
+  S3BucketName:
+    Description: S3 Bucket Name, ensure the name is globally unique
+    Type: String
+    Default: myrds-acg-20210101-001
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-0ab4d1e9cf9a1215a
+    us-west-1:
+      AMI: ami-bf5540df
+    ap-southeast-1:
+      AMI: ami-e2adf99e
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName      
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName            
+
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+
+#  NatGateway1EIP:
+#    Type: AWS::EC2::EIP
+#    DependsOn: InternetGatewayAttachment
+#    Properties:
+#      Domain: vpc
+
+#  NatGateway2EIP:
+#    Type: AWS::EC2::EIP
+#    DependsOn: InternetGatewayAttachment
+#    Properties:
+#      Domain: vpc
+
+#  NatGateway1:
+#    Type: AWS::EC2::NatGateway
+#    Properties:
+#      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+#      SubnetId: !Ref PublicSubnet1
+
+#  NatGateway2:
+#    Type: AWS::EC2::NatGateway
+#    Properties:
+#      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+#      SubnetId: !Ref PublicSubnet2
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+
+#  DefaultPrivateRoute1:
+#    Type: AWS::EC2::Route
+#    Properties:
+#      RouteTableId: !Ref PrivateRouteTable1
+#      DestinationCidrBlock: 0.0.0.0/0
+#      NatGatewayId: !Ref NatGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes (AZ2)
+
+#  DefaultPrivateRoute2:
+#    Type: AWS::EC2::Route
+#    Properties:
+#      RouteTableId: !Ref PrivateRouteTable2
+#      DestinationCidrBlock: 0.0.0.0/0
+#      NatGatewayId: !Ref NatGateway2
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  OpenAllSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "all-port-open-sg"
+      GroupDescription: "Security group with all ports open rule"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0  
+
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Metadata: 
+      AWS::CloudFormation::Init:
+        config: 
+          packages: 
+            yum:
+              java-1.8.0-openjdk: []
+    Properties:
+      InstanceType: t2.small
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - !Ref AWS::Region
+        - AMI
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref OpenAllSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Client
+      KeyName: !Ref EC2KeyPairName
+      BlockDeviceMappings: 
+      - DeviceName: "/dev/xvda"
+        Ebs: 
+          VolumeType: "gp2"
+          VolumeSize: "100"
+      UserData:
+        'Fn::Base64': 
+          !Sub |
+            #!/bin/bash -xe            
+            # Download Oracle clients
+            yum install -y java-1.8.0-openjdk
+            wget -q https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-21.1.1.113.1704.zip -O /home/ec2-user/sqlcl-21.1.1.113.1704.zip
+            wget -q https://download.oracle.com/otn_software/linux/instantclient/213000/instantclient-basic-linux.x64-21.3.0.0.0.zip -O /home/ec2-user/instantclient-basic-linux.x64-21.3.0.0.0.zip
+            wget -q https://download.oracle.com/otn_software/linux/instantclient/213000/instantclient-sqlplus-linux.x64-21.3.0.0.0.zip -O /home/ec2-user/instantclient-sqlplus-linux.x64-21.3.0.0.0.zip
+            wget -q https://download.oracle.com/otn_software/linux/instantclient/213000/instantclient-tools-linux.x64-21.3.0.0.0.zip -O /home/ec2-user/instantclient-tools-linux.x64-21.3.0.0.0.zip
+            wget -q https://download.oracle.com/otn_software/linux/instantclient/213000/instantclient-jdbc-linux.x64-21.3.0.0.0.zip -O /home/ec2-user/instantclient-jdbc-linux.x64-21.3.0.0.0.zip
+            chown ec2-user:ec2-user /home/ec2-user/*.zip
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Ref S3BucketName
+
+  myKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: CMS created for encryption
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS: !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':user/cloud_user' ] ]
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:TagResource
+          - kms:UntagResource
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS: 
+              - !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS' ] ]
+              - !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':role/aws-service-role/backup.amazonaws.com/AWSServiceRoleForBackup' ] ]
+          Action:
+          - kms:DescribeKey
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey
+          Resource: '*'
+
+
+  myAlias:
+    Type: 'AWS::KMS::Alias'
+    Properties:
+      AliasName: alias/myKey
+      TargetKeyId: !Ref myKey
+  
+  S3IntegrationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: rds-s3-integration-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - rds.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: rds-s3-integration-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:PutObject'
+                  - 'kms:Decrypt'
+                  - 'kms:Encrypt'
+                  - 'kms:ReEncrypt'
+                  - 'kms:GenerateDataKey'
+                  - 'kms:DescribeKey'
+                Resource: 
+                  - !GetAtt S3Bucket.Arn
+                  - !Join ['', [ !GetAtt S3Bucket.Arn,'/*' ] ]
+                  - !GetAtt myKey.Arn
+
+  EnhancedMonitoringRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: rds-emaccess-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - monitoring.rds.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
+
+
+  myDBSubnetGroup: 
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties: 
+      DBSubnetGroupName: myDBSubnetGroup
+      DBSubnetGroupDescription: Test DB subnet group
+      SubnetIds: 
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags: 
+        - 
+          Key: Owner
+          Value: Donghua
+
+  OracleParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: Test DB Parameter Group
+      Family: oracle-ee-19
+      Parameters:
+        audit_trail: 'DB,EXTENDED'
+        compatible: '19.11.0'   # Default is 19.0.0, raise to create Blockchain/Immute table
+
+  OracleOptionGroup: 
+    Type: "AWS::RDS::OptionGroup"
+    Properties: 
+      EngineName: oracle-ee
+      MajorEngineVersion: "19"
+      OptionGroupDescription: "Test DB Option Group"
+      OptionConfigurations: 
+        - 
+          OptionName: S3_INTEGRATION
+          OptionVersion: "1.0"
+
+  MyDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties: 
+      DBInstanceIdentifier: my-db-instance1
+      DBName: MYTEST
+      DBInstanceClass: db.t3.medium
+      AllocatedStorage: 20
+      AllowMajorVersionUpgrade: False
+      AssociatedRoles: 
+        - FeatureName: S3_INTEGRATION
+          RoleArn: !GetAtt S3IntegrationRole.Arn
+      AutoMinorVersionUpgrade: True
+      BackupRetentionPeriod: 35
+      DBParameterGroupName: !Ref OracleParameterGroup
+      DBSubnetGroupName: !Ref myDBSubnetGroup
+      EnableCloudwatchLogsExports: 
+        - trace
+        - audit
+        - alert
+        - listener
+      EnablePerformanceInsights: True
+      Engine: oracle-ee
+      EngineVersion: 19.0.0.0.ru-2021-07.rur-2021-07.r1 #19.0.0.0.ru-2021-01.rur-2021-01.r2
+      KmsKeyId: !Ref myKey
+      LicenseModel: bring-your-own-license
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      MaxAllocatedStorage: 1000
+      MonitoringInterval: 30
+      MonitoringRoleArn: !GetAtt EnhancedMonitoringRole.Arn
+      MultiAZ: False
+      OptionGroupName: !Ref OracleOptionGroup
+      PerformanceInsightsKMSKeyId: !Ref myKey
+      PerformanceInsightsRetentionPeriod: 7
+      Port: 1521
+      PubliclyAccessible: True
+      SourceRegion: String
+      StorageEncrypted: True
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref OpenAllSecurityGroup
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+
+  PublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref PublicSubnet1
+
+  PublicSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PublicSubnet2
+
+  PrivateSubnet1:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2:
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivateSubnet2
+
+  OpenAllSecurityGroup:
+    Description: Security group with open all ports rule
+    Value: !Ref OpenAllSecurityGroup         
+
+  EC2Instance:
+    Description: The Public DNS for the EC2 Instance
+    Value: !Sub '${EC2Instance.PublicDnsName}'
+
+  RDSInstance:
+    Description: The Connection Endpoint for the RDS
+    Value: !Join [ ":", [ !GetAtt MyDatabase.Endpoint.Address, !GetAtt MyDatabase.Endpoint.Port ]]
+
+  S3BucketName:
+    Description: S3 Bucket Name
+    Value: !Ref S3BucketName
+
