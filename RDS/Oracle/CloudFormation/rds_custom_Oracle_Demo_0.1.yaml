@@ -1,0 +1,700 @@
+---
+## Amazon RDS Custom for Oracle PoC/Demo
+## Infrastructure template for all pre-requisites setup
+##
+## Changelog:
+##
+## Dependencies:
+##  - Provision EC2 key pair before this CF template
+## 
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon RDS Custom for Oracle PoC/Demo Prerequisites Stack
+
+###############################################################################
+# Parameters 
+###############################################################################   
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: rdscustom
+    MinLength: 2
+    MaxLength: 12
+    AllowedPattern: ([a-zA-Z0-9]+)
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.1.0.0/16
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.1.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.2.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x
+  PublicSubnet3CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the third Availability Zone
+    Type: String
+    Default: 10.1.3.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x 
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.4.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.5.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x
+  PrivateSubnet3CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the third Availability Zone
+    Type: String
+    Default: 10.1.6.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR block x.x.x.x/x    
+  WindowsEC2InstanceClass:
+    Description: Windows machine to download Oracle software and upload to S3
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large
+  OracleEC2InstanceClass:
+    Description: Oracle database and client on EC2
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large 
+  EC2KeyPair:
+    Description: Specify an existing EC2 KeyPair for EC2 instances
+    Type: String
+    Default: AdminKey
+    AllowedPattern: '^([a-zA-Z0-9\.\-\_]*)$'
+  C9EC2InstanceType:
+    Description: EC2 instance type on which IDE runs
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+  C9AutoHibernateTimeout:
+    Description: How many minutes idle before shutting down the IDE. Options, 30min, 1hr, 4hr, 1day, 1week, Never (0)
+    Type: Number
+    Default: 240
+    AllowedValues:
+      - 30
+      - 60
+      - 240
+      - 1440
+      - 10080
+      - 0
+
+###############################################################################
+# Parameter groups
+###############################################################################
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Overall Settings"
+        Parameters:
+          - EnvironmentName
+      -    
+        Label:
+          default: "New VPC Parameters"
+        Parameters:
+          - VpcCIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PublicSubnet3CIDR
+          - PrivateSubnet1CIDR
+          - PrivateSubnet2CIDR
+          - PrivateSubnet3CIDR          
+      -
+        Label:
+          default: "Provision EC2 Instances"
+        Parameters:
+          - WindowsEC2InstanceClass
+          - OracleEC2InstanceClass
+          - EC2KeyPair
+      -
+        Label:
+          default: "Provision Cloud9 IDE"
+        Parameters:
+          - C9EC2InstanceType
+          - C9AutoHibernateTimeout
+
+    ParameterLabels:
+      EnvironmentName:
+        default: "Stack Environment Name"
+
+###############################################################################
+# Mappings
+###############################################################################
+Mappings:
+  OracleRegionMap:
+    us-east-1:
+      AMI: ami-0c02fb55956c7d316
+    ap-southeast-1:
+      AMI: ami-0801a1e12f4a9ccc0
+    ap-southeast-2:
+      AMI: ami-059af0b76ba105e7e
+  Window2019RegionMap:
+    us-east-1:
+      AMI: ami-0f9a92942448ac56f
+    ap-southeast-1:
+      AMI: ami-0986ce89f08af5d39
+    ap-southeast-2:
+      AMI: ami-058faf96ea153ed9f
+###############################################################################
+# Conditions
+###############################################################################   
+
+###############################################################################
+# Resources 
+###############################################################################   
+Resources:
+  # VPC and Subnet
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-igw     
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-pub-subnet-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-pub-subnet-2
+
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnet3CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-pub-subnet-3
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-priv-subnet-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-priv-subnet-2
+
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet3CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-priv-subnet-3
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-pub-rt
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  PublicSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet3
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-priv-rt
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  PrivateSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet3
+
+  PublicSubnetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-public-subnet-sg
+      GroupDescription: "Security group for public subnets"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0          
+
+  PrivateSubnetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-private-subnet-sg
+      GroupDescription: "Security group for private subnets"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1521
+          ToPort: 1521
+          CidrIp: !Ref VpcCIDR
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  PublicSubnetInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: -1
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref PublicSubnetSecurityGroup
+      GroupId: !Ref PublicSubnetSecurityGroup
+
+  PrivateSubnetInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: -1
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref PrivateSubnetSecurityGroup
+      GroupId: !Ref PrivateSubnetSecurityGroup
+
+  DBSubnetGroup: 
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupName: !Sub ${EnvironmentName}-db-subnet-group
+      DBSubnetGroupDescription: !Sub ${EnvironmentName} DB subnet group
+      SubnetIds: 
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+
+  # Use NAT Gateway Instead of Private Endpoints to keep the cost low for testing purpose
+
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  # S3 Bucket with unique Bucket Name with default prefix rdscustom-oracle-xxxxxxx
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Join ['-', [!Ref EnvironmentName, 'oracle', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+
+  # KMS
+  myKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: CMS created for encryption
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS: !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':root' ] ]
+          Action:
+          - kms:*
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS: 
+              - !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS' ] ]
+              #- !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':role/aws-service-role/backup.amazonaws.com/AWSServiceRoleForBackup' ] ]
+              #- !Join ['', [ 'arn:aws:iam::',Ref: AWS::AccountId,':user/cloud_user' ] ]
+          Action:
+          - kms:DescribeKey
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey
+          Resource: '*'
+
+  myKMSAlias:
+    Type: 'AWS::KMS::Alias'
+    Properties:
+      AliasName: alias/rdsCustomOracleKey
+      TargetKeyId: !Ref myKey
+  
+  # IAM Policies and Roles
+
+  # Instance Profile
+  RDSCustomInstanceServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'AWSRDSCustomInstanceRole-${AWS::Region}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: AWSRDSCustomEc2InstanceRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: '1'
+                Effect: Allow
+                Action:
+                  - 'ssm:DescribeAssociation'
+                  - 'ssm:GetDeployablePatchSnapshotForInstance'
+                  - 'ssm:GetDocument'
+                  - 'ssm:DescribeDocument'
+                  - 'ssm:GetManifest'
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                  - 'ssm:ListAssociations'
+                  - 'ssm:ListInstanceAssociations'
+                  - 'ssm:PutInventory'
+                  - 'ssm:PutComplianceItems'
+                  - 'ssm:PutConfigurePackageResult'
+                  - 'ssm:UpdateAssociationStatus'
+                  - 'ssm:UpdateInstanceAssociationStatus'
+                  - 'ssm:UpdateInstanceInformation'
+                  - 'ssm:GetConnectionStatus'
+                  - 'ssm:DescribeInstanceInformation'
+                  - 'ssmmessages:CreateControlChannel'
+                  - 'ssmmessages:CreateDataChannel'
+                  - 'ssmmessages:OpenControlChannel'
+                  - 'ssmmessages:OpenDataChannel'
+                Resource:
+                  - '*'
+              - Sid: '2'
+                Effect: Allow
+                Action:
+                  - 'ec2messages:AcknowledgeMessage'
+                  - 'ec2messages:DeleteMessage'
+                  - 'ec2messages:FailMessage'
+                  - 'ec2messages:GetEndpoint'
+                  - 'ec2messages:GetMessages'
+                  - 'ec2messages:SendReply'
+                Resource:
+                  - '*'
+              - Sid: '3'
+                Effect: Allow
+                Action:
+                  - 'logs:PutRetentionPolicy'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogStreams'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                Resource:
+                  - !Sub >-
+                    arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:rds-custom-instance*
+              - Sid: '4'
+                Effect: Allow
+                Action:
+                  - 's3:putObject'
+                  - 's3:getObject'
+                  - 's3:getObjectVersion'
+                Resource:
+                  - 'arn:aws:s3:::do-not-delete-rds-custom-*/*'
+              - Sid: '5'
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricData'
+                Resource:
+                  - '*'
+                Condition:
+                  StringEquals:
+                    'cloudwatch:namespace':
+                      - RDSCustomForOracle/Agent
+              - Sid: '6'
+                Effect: Allow
+                Action:
+                  - 'events:PutEvents'
+                Resource:
+                  - '*'
+              - Sid: '7'
+                Effect: Allow
+                Action:
+                  - 'secretsmanager:GetSecretValue'
+                  - 'secretsmanager:DescribeSecret'
+                Resource:
+                  - !Sub >-
+                    arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:do-not-delete-rds-custom-*
+              - Sid: '8'
+                Effect: Allow
+                Action:
+                  - 's3:ListBucketVersions'
+                Resource:
+                  - 'arn:aws:s3:::do-not-delete-rds-custom-*'               
+              - Sid: '9'
+                Effect: Allow
+                Action: 'ec2:CreateSnapshots'
+                Resource:
+                  - 'arn:aws:ec2:*:*:instance/*'
+                  - 'arn:aws:ec2:*:*:volume/*'
+                Condition:
+                  StringEquals:
+                    'ec2:ResourceTag/AWSRDSCustom': custom-oracle
+              - Sid: '10'
+                Effect: Allow
+                Action: 'ec2:CreateSnapshots'
+                Resource:
+                  - 'arn:aws:ec2:*::snapshot/*'
+              - Sid: '11'
+                Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                  - 'kms:GenerateDataKey'
+                Resource:
+                  - !GetAtt myKey.Arn
+              - Sid: '12'
+                Effect: Allow
+                Action: 'ec2:CreateTags'
+                Resource: '*'
+                Condition:
+                  StringLike:
+                    'ec2:CreateAction':
+                      - CreateSnapshots
+              - Sid: '13' # Added to allow EC2 instances to upload/download Oracle software 
+                Effect: Allow
+                Action:
+                  - 's3:putObject'
+                  - 's3:getObject'
+                  - 's3:getObjectVersion'
+                  - 's3:ListBucketVersions'
+                  - 's3:ListBucket'
+                  - 's3:DeleteObject'
+                Resource:
+                  - !Join ['', [!GetAtt S3Bucket.Arn,'/*']]
+                  - !GetAtt S3Bucket.Arn
+                                            
+  RDSCustomInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: !Sub 'AWSRDSCustomInstanceProfile-${AWS::Region}'
+      Path: /
+      Roles:
+        - !Ref RDSCustomInstanceServiceRole
+  
+  # EC2 Instances
+  OracleEC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: RDSCustomInstanceProfile
+    Properties:
+      InstanceType: !Ref OracleEC2InstanceClass
+      IamInstanceProfile: !Ref RDSCustomInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+        - OracleRegionMap
+        - !Ref AWS::Region
+        - AMI
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroupIds:
+        - !Ref PrivateSubnetSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Oracle on EC2
+      KeyName: !Ref EC2KeyPair
+      BlockDeviceMappings: 
+      - DeviceName: "/dev/xvda"
+        Ebs: 
+          VolumeType: "gp2"
+          VolumeSize: "50"
+      UserData:
+        'Fn::Base64': 
+          !Sub |
+            #!/bin/bash -xe            
+            # Download Oracle sql clients
+            yum install -y java-1.8.0-openjdk
+            wget -q https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-21.3.0.278.1045.zip -O /home/ec2-user/sqlcl-21.3.0.278.1045.zip
+            chown ec2-user:ec2-user /home/ec2-user/*.zip
+
+  WindowsEC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: RDSCustomInstanceProfile
+    Properties:
+      InstanceType: !Ref WindowsEC2InstanceClass
+      IamInstanceProfile: !Ref RDSCustomInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+        - Window2019RegionMap
+        - !Ref AWS::Region
+        - AMI
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref PublicSubnetSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Windows Client
+      KeyName: !Ref EC2KeyPair
+      BlockDeviceMappings: 
+      - DeviceName: "/dev/sda1"
+        Ebs: 
+          VolumeType: "gp2"
+          VolumeSize: "50"
+
+  # Cloud9 Instance
+  Cloud9Instance:
+    Type: AWS::Cloud9::EnvironmentEC2
+    Properties:
+      Name: !Sub ${EnvironmentName}-Oracle-Client
+      Description: !Sub ${EnvironmentName}-PostgreSQL-Client-Cloud9-IDE
+      AutomaticStopTimeMinutes: !Ref C9AutoHibernateTimeout
+      ImageId: amazonlinux-2-x86_64
+      SubnetId: !Ref PublicSubnet1
+      InstanceType: !Ref C9EC2InstanceType
+      # OwnerArn: !Sub 'arn:aws:sts::${AWS::AccountId}:assumed-role/TeamRole/MasterKey'
+      # Repositories:
+      #     - RepositoryUrl: !Sub 'https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepositoryName}'
+      #       PathComponent: !Sub 'codecommit/${RepositoryName}'
+
+###############################################################################
+# Outputs 
+###############################################################################   
+Outputs:
+  #VPC:
+  #  Description: Created VPC
+  #  Value: !Ref VPC
+  #PublicSubnets:
+  #  Description: List of the public subnets
+  #  Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+  #PrivateSubnets:
+  #  Description: List of the private subnets
+  #  Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+  
+  Cloud9URL:
+    Description: PostgreSQL Client in Cloud9 IDE
+    Value:
+      Fn::Join:
+      - ''
+      - - !Sub https://${AWS::Region}.console.aws.amazon.com/cloud9/ide/
+        - !Ref Cloud9Instance
