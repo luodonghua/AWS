@@ -649,7 +649,7 @@ Resources:
         - Window2019RegionMap
         - !Ref AWS::Region
         - AMI
-      SubnetId: !Ref PublicSubnet1
+      SubnetId: !Ref PublicSubnet2
       SecurityGroupIds:
         - !Ref PublicSubnetSecurityGroup
       Tags:
@@ -698,3 +698,19 @@ Outputs:
       - ''
       - - !Sub https://${AWS::Region}.console.aws.amazon.com/cloud9/ide/
         - !Ref Cloud9Instance
+  
+  OracleEC2Instance:
+    Description: EC2 Instance for Oracle installation
+    Value: !Sub ${EnvironmentName} Oracle on EC2
+
+  WindowsEC2Instance:
+    Description: EC2 Instance for Oracle software download
+    Value: !Sub ${EnvironmentName} Windows Client
+
+  S3BucketName:
+    Description: S3 Bucket Name
+    Value: !Ref S3Bucket
+
+  rdsCustomOracleKey:
+    Description: KeyId
+    Value: !GetAtt myKey.KeyId
